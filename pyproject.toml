@@ -1,0 +1,12 @@
+[project]
+name = "model-wringer"
+version = "0.1.0"
+description = "Walk-forward evaluation battery for price models (directional + density)"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pandas", "scipy", "yfinance"]
+
+[project.optional-dependencies]
+garch = ["arch"]
+
+[tool.setuptools]
+packages = ["wringer"]
