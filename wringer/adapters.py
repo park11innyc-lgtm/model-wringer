@@ -68,7 +68,9 @@ class KronosAdapter(ModelAdapter):
         mdl = Kronos.from_pretrained(model)
         self.p = KronosPredictor(mdl, tok, device=device, max_context=512)
 
-    def sample_terminal_returns(self, hist, horizon, n_samples, rng, future_ret=None):
+    wants_future_stamps = True    # real future bar dates from the instrument's calendar
+
+    def sample_terminal_returns(self, hist, horizon, n_samples, rng, future_ret=None, future_stamps=None):
         import numpy as np, torch, pandas as pd
         K, p = self._K, self.p
         d = hist.copy()
@@ -79,8 +81,10 @@ class KronosAdapter(ModelAdapter):
         mu, sd = x.mean(0), x.std(0)
         xn = np.clip((x - mu) / (sd + 1e-5), -p.clip, p.clip)[None, :]
         xs = K.calc_time_stamps(d["timestamps"]).values.astype(np.float32)[None, :]
-        # future stamps: extend business days from last hist timestamp
-        fut = pd.bdate_range(d["timestamps"].iloc[-1], periods=horizon + 1)[1:]
+        if future_stamps is not None and len(future_stamps) == horizon:
+            fut = pd.to_datetime(pd.Series(future_stamps))
+        else:   # fallback when called outside the runner: weekdays only
+            fut = pd.bdate_range(d["timestamps"].iloc[-1], periods=horizon + 1)[1:]
         ys = K.calc_time_stamps(pd.Series(fut)).values.astype(np.float32)[None, :]
         t = lambda a: torch.from_numpy(np.array(a, dtype=np.float32)).to(p.device)
         out = K.auto_regressive_inference(p.tokenizer, p.model, t(xn), t(xs), t(ys),

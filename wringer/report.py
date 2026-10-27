@@ -38,6 +38,10 @@ def density_verdict(d):
                      + ("     —" if v.get("cov80") is None else f"{v['cov80']:6.2f}"))
     for k, (mu, (lo, hi)) in deltas.items():
         lines.append(f"ΔCRPS {k:14s} {mu*1e4:+6.1f} bps [{lo*1e4:+.1f},{hi*1e4:+.1f}]")
+    import math
+    if not deltas or any(not math.isfinite(x) for mu, (lo, hi) in deltas.values() for x in (mu, lo, hi)):
+        lines.append("VERDICT: NO VERDICT: comparison metrics unavailable (non-finite or missing deltas).")
+        return "\n".join(lines)
     ctr_lose = [k for k, (mu, (lo, _)) in deltas.items() if k.startswith("ctr") and lo > 0]
     anch_win = [k for k, (mu, (_, hi)) in deltas.items() if k.startswith("anch") and hi < 0]
     if ctr_lose:

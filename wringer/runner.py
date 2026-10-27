@@ -11,6 +11,8 @@ from .data import load_daily
 def run(adapter, tickers, lookback=90, horizon=5, n_samples=50, ntest=252,
         step=2, start="2018-01-01", end=None, seed=0, verbose=True, data=None):
     """data: optional {ticker: DataFrame} to bypass yfinance (offline tests)."""
+    if n_samples < 2:
+        raise ValueError("n_samples must be >= 2 (density scoring divides by n*(n-1))")
     rows = []
     rng = np.random.default_rng(seed)
     for tkr in tickers:
@@ -22,10 +24,16 @@ def run(adapter, tickers, lookback=90, horizon=5, n_samples=50, ntest=252,
             last = float(hist["close"].iloc[-1])
             act = float(df["close"].iloc[i + horizon - 1] / last - 1.0)
             fut_kw = dict(future_ret=act) if adapter.wants_future else {}
+            if getattr(adapter, "wants_future_stamps", False):
+                # The instrument's own future bar dates (a public calendar fact, no prices),
+                # so weekend-trading and holiday-closed instruments are both conditioned correctly.
+                fut_kw["future_stamps"] = df["timestamps"].iloc[i:i + horizon].reset_index(drop=True)
             s = np.asarray(adapter.sample_terminal_returns(
                 hist, horizon, n_samples, rng, **fut_kw), dtype=float)
             if s.shape != (n_samples,):
                 raise ValueError(f"adapter returned {s.shape}, want ({n_samples},)")
+            if not np.isfinite(s).all():
+                raise ValueError(f"adapter returned non-finite samples at {tkr} row i={i}")
             if i - 1 - horizon < 0: continue   # hist_ret undefined -> row unusable
             hist_ret = float(last / df["close"].iloc[i - 1 - horizon] - 1.0)
             rc = np.concatenate([[last], df["close"].iloc[i:i + horizon].values])

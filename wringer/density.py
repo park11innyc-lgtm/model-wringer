@@ -51,8 +51,15 @@ def fit_garch(returns_pct):
 def score(df, tickers_data, horizon=None, with_garch=True):
     """df: runner output. tickers_data: {ticker: full daily df}.
     Verifies per-row alignment against the stored origin close; raises on drift."""
-    if horizon is None:
-        horizon = int(df["horizon"].iloc[0]) if "horizon" in df.columns else 5
+    if "horizon" in df.columns:
+        stored = sorted({int(h) for h in df["horizon"].dropna()})
+        if len(stored) != 1:
+            raise ValueError(f"run CSV mixes horizons {stored}; score one horizon at a time")
+        if horizon is not None and int(horizon) != stored[0]:
+            raise ValueError(f"--horizon {horizon} conflicts with the run's stored horizon {stored[0]}")
+        horizon = stored[0]
+    elif horizon is None:
+        horizon = 5
     scols = [c for c in df.columns if c.startswith("s") and c[1:].isdigit()]
     out = []; skipped = 0; garch_fail = 0
     for _, row in df.iterrows():
