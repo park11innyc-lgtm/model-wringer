@@ -22,16 +22,18 @@ python -m wringer.cli score --csv run.csv --density
 
 ## What the verdict means
 - **FAIL** — within-ticker AUC inside the circular-shift no-skill null.
-- **ATTRIBUTED** — beats the null but not the free reversal rule (the signal
-  is a disguised baseline; a one-line rule gets you the same thing free).
-- **PASS** — beats the null AND shows incremental signal beyond reversal
-  (block-bootstrap CI above 0.5). Only then is the model worth a deeper look.
+- **ATTRIBUTED** — beats the null but not the free reversal/momentum rule (a
+  one-line rule gets you the same thing free).
+- **PASS** — beats the null AND beats the better free rule outright: paired
+  AUC(model) - AUC(free rule), date-block CI above 0 at every block length in
+  5/10/20. Only then is the model worth a deeper look.
 - Density: fair-CRPS vs EWMA / GARCH(1,1) / trailing histogram; a model whose
   centered density loses to those is not usable as a scenario generator.
 
-Known-answer validated: certifies an oracle, fails pure noise, and attributes a
-disguised reversal clone to its baseline — `tests/test_known_answer.py` (offline,
-synthetic data, seconds). The package was also adversarially reviewed against the
+Known-answer validated: certifies an oracle, gives no PASS to noise across seeds,
+and attributes reversal rules and clones in a world where reversal works —
+`tests/test_known_answer.py`, `tests/test_guards.py` (offline, synthetic data).
+`tests/mutation_check.py` proves the suites fail when a verdict is hardcoded. The package was also adversarially reviewed against the
 original audit scripts (directional estimators reproduce them
 digit-for-digit; density fixes from that review are applied).
 

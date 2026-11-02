@@ -7,6 +7,8 @@ from scipy.stats import norm
 
 Z80 = 1.281552
 MIN_PRE_ORIGIN = 600   # audited guard: >=600 pre-origin bars to fit baselines
+MIN_BLOCKS = 2         # block bootstrap needs at least this many distinct date blocks
+BLOCK_GRID = (5, 10, 20)
 
 
 def crps_samples(x, y):
@@ -52,12 +54,14 @@ def score(df, tickers_data, horizon=None, with_garch=True):
     """df: runner output. tickers_data: {ticker: full daily df}.
     Verifies per-row alignment against the stored origin close; raises on drift."""
     if "horizon" in df.columns:
-        stored = sorted({int(h) for h in df["horizon"].dropna()})
-        if len(stored) != 1:
-            raise ValueError(f"run CSV mixes horizons {stored}; score one horizon at a time")
-        if horizon is not None and int(horizon) != stored[0]:
-            raise ValueError(f"--horizon {horizon} conflicts with the run's stored horizon {stored[0]}")
-        horizon = stored[0]
+        stamped = set(int(h) for h in df["horizon"].unique())
+        if len(stamped) != 1:
+            raise ValueError(f"run CSV mixes horizons {sorted(stamped)}; score each horizon separately")
+        run_h = stamped.pop()
+        if horizon is not None and int(horizon) != run_h:
+            raise ValueError(f"--horizon {horizon} does not match the run's horizon {run_h}; "
+                             f"samples and realized returns are {run_h}-day")
+        horizon = run_h
     elif horizon is None:
         horizon = 5
     scols = [c for c in df.columns if c.startswith("s") and c[1:].isdigit()]
@@ -65,6 +69,8 @@ def score(df, tickers_data, horizon=None, with_garch=True):
     for _, row in df.iterrows():
         y = row.act_ret
         ks = row[scols].values.astype(float)
+        if not np.isfinite(ks).all():
+            raise ValueError(f"nonfinite model samples at {row.ticker} row i={int(row.i)}")
         full = tickers_data[row.ticker]
         i = int(row.i)
         if i - 1 >= len(full) or abs(full["close"].iloc[i - 1] / row.last - 1) > 1e-6:
@@ -120,14 +126,16 @@ def score(df, tickers_data, horizon=None, with_garch=True):
         if not len(d): return None
         rng = np.random.default_rng(seed)
         dates = sorted(d.date.unique())
-        bydate = {k: g for k, g in d.groupby("date")}
+        mu = float((d[a] - d[b]).mean())
+        if len(dates) < MIN_BLOCKS * block:   # too few blocks: interval would collapse to the point
+            return mu, (float("nan"), float("nan"))
+        bydate = {k: (g[a] - g[b]).values for k, g in d.groupby("date")}
         nb = max(1, len(dates) // block); reps = []
         for _ in range(n):
             picks = rng.integers(0, max(1, len(dates) - block + 1), size=nb)
             sel = [d2 for p_ in picks for d2 in dates[p_:p_ + block]]  # keep duplicates
-            bdf = pd.concat([bydate[d2] for d2 in sel])
-            reps.append((bdf[a] - bdf[b]).mean())
-        return float((d[a] - d[b]).mean()), tuple(np.percentile(reps, [2.5, 97.5]))
+            reps.append(np.concatenate([bydate[d2] for d2 in sel]).mean())
+        return mu, tuple(np.percentile(reps, [2.5, 97.5]))
 
     summary = {}
     for m in ["model", "model_ctr", "model_anch", "ewma", "garch", "hist"]:
@@ -138,12 +146,15 @@ def score(df, tickers_data, horizon=None, with_garch=True):
             if pcol in sc.columns:
                 summary[m]["pit_ks"] = ks_stat(sc[pcol].dropna())
                 summary[m]["cov80"] = float(sc[ccol].mean())
-    deltas = {}
+    deltas = {}; anch_hi = {}
     for base in ["ewma", "garch", "hist"]:
         if f"crps_{base}" in sc.columns and sc[f"crps_{base}"].notna().any():
             for tag, col in [("raw", "crps_model"), ("ctr", "crps_model_ctr"),
                              ("anch", "crps_model_anch")]:
                 d_ = block_dcrps(col, f"crps_{base}")
                 if d_: deltas[f"{tag}_vs_{base}"] = d_
-    return dict(per_row=sc, summary=summary, deltas=deltas,
+                if d_ and tag == "anch":   # the Kronos sliver held at L=10 only: a win must hold at every L
+                    anch_hi[f"{tag}_vs_{base}"] = max(block_dcrps(col, f"crps_{base}", block=L)[1][1]
+                                                      for L in BLOCK_GRID)
+    return dict(per_row=sc, summary=summary, deltas=deltas, anch_hi=anch_hi,
                 scored=len(sc), skipped=skipped, garch_failures=garch_fail)

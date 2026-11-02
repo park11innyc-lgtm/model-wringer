@@ -4,15 +4,15 @@ def directional_verdict(s):
     lines = [f"n={s['n']}  base_up={s['base_up']:.3f}",
              f"within-ticker AUC   {s['within_auc']:.3f}   null {s['null_mu']:.3f}±{s['null_sd']:.3f}   pct {s['null_pct']:.2f}",
              f"baselines           reversal {s['reversal_auc']:.3f}   momentum {s['momentum_auc']:.3f}",
-             f"incremental>rev     resid AUC {s['incremental']['resid_auc']:.3f}  CI [{s['incremental']['ci'][0]:.3f},{s['incremental']['ci'][1]:.3f}]  corr(rev) {s['incremental']['corr_with_reversal']:+.2f}",
+             f"edge over free rule ΔAUC {s['incremental']['edge']:+.3f}  CI [{s['incremental']['ci'][0]:+.3f},{s['incremental']['ci'][1]:+.3f}]  corr(rev) {s['incremental']['corr_with_reversal']:+.2f}",
              f"calibration bias    {s['bias_bps']:+.0f} bps (pred − realized mean)",
              "per-ticker          " + "  ".join(f"{k}:{v:.3f}" for k, v in s["per_ticker"].items())]
     up = s["within_auc"]; hi_null = s["null_mu"] + 2 * s["null_sd"]
     inc_lo = s["incremental"]["ci"][0]
-    if up > hi_null and inc_lo > 0.5:
-        v = "PASS: discriminates beyond the null AND beyond the free reversal rule."
+    if up > hi_null and inc_lo > 0:
+        v = "PASS: discriminates beyond the null AND beats the free reversal/momentum rule."
     elif up > hi_null:
-        v = "ATTRIBUTED: beats the null but not the free reversal baseline — signal is explained by reversal."
+        v = "ATTRIBUTED: beats the null but not the free reversal/momentum rule — a one-line rule does as well."
     else:
         v = "FAIL: indistinguishable from the no-skill null."
     if abs(s["bias_bps"]) > 100:
@@ -38,12 +38,17 @@ def density_verdict(d):
                      + ("     —" if v.get("cov80") is None else f"{v['cov80']:6.2f}"))
     for k, (mu, (lo, hi)) in deltas.items():
         lines.append(f"ΔCRPS {k:14s} {mu*1e4:+6.1f} bps [{lo*1e4:+.1f},{hi*1e4:+.1f}]")
+    for k, hi in d.get("anch_hi", {}).items():
+        lines.append(f"worst hi over L=5,10,20 {k}: {hi*1e4:+.1f} bps")
     import math
-    if not deltas or any(not math.isfinite(x) for mu, (lo, hi) in deltas.values() for x in (mu, lo, hi)):
-        lines.append("VERDICT: NO VERDICT: comparison metrics unavailable (non-finite or missing deltas).")
+    ctr_valid = [k for k, (mu, (lo, hi)) in deltas.items()
+                 if k.startswith("ctr") and all(math.isfinite(x) for x in (mu, lo, hi))]
+    if "model_ctr" not in s or not ctr_valid:
+        lines.append("VERDICT: NO VERDICT: no valid model-vs-baseline comparison "
+                     "(missing model scores, or too few dates for a block bootstrap).")
         return "\n".join(lines)
     ctr_lose = [k for k, (mu, (lo, _)) in deltas.items() if k.startswith("ctr") and lo > 0]
-    anch_win = [k for k, (mu, (_, hi)) in deltas.items() if k.startswith("anch") and hi < 0]
+    anch_win = [k for k, hi in d.get("anch_hi", {}).items() if hi < 0]   # NaN (too few dates) is no win
     if ctr_lose:
         v = "FAIL: centered density loses to free baselines (" + ", ".join(ctr_lose) + ")."
         if anch_win:
