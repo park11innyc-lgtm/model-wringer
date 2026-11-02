@@ -84,6 +84,9 @@ def score(df, tickers_data, horizon=None, with_garch=True):
         r = pd.Series(full["close"].values[:i]).pct_change().dropna().values
         sig5 = ewma_sigma(r, horizon=horizon)
         ksc = ks - ks.mean()
+        if not ks.max() > ks.min():      # std of identical floats can round above 0
+            raise ValueError(f"zero-variance fan at {row.ticker} row i={i}: shape is undefined, "
+                             "so variance anchoring can't be scored")
         kae = ksc * (sig5 / ks.std(ddof=1))          # shape-only, anchored to EWMA vol
         rec = dict(ticker=row.ticker, date=row.date,
                    crps_model=crps_samples(ks, y),
@@ -102,6 +105,8 @@ def score(df, tickers_data, horizon=None, with_garch=True):
         if with_garch:
             try:
                 res = fit_garch(r[-1000:])
+                if res.convergence_flag != 0:
+                    raise RuntimeError("GARCH optimizer did not converge")
                 f = res.forecast(horizon=horizon, reindex=False)
                 gvar = float(f.variance.values[0].sum()) / 1e4
                 gmu = float(res.params.get("mu", 0.0)) / 100 * horizon

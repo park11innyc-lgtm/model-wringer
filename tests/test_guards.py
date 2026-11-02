@@ -3,6 +3,7 @@ density estimators and density verdicts.
 Run: .venv/bin/python tests/test_guards.py"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from types import SimpleNamespace
 import numpy as np, pandas as pd
 from wringer.adapters import NoiseAdapter
 from wringer.runner import run
@@ -89,6 +90,24 @@ def main():
     mid = df[df.date.isin(sorted(df.date.unique())[:25])]
     res = density.score(mid, DATA, with_garch=False)
     assert res["anch_hi"] and all(np.isnan(v) for v in res["anch_hi"].values()), res["anch_hi"]
+
+    # a fan with no spread has no shape to anchor: rejected, never scored as NaN
+    flat = df.copy(); scols = [c for c in df.columns if c.startswith("s") and c[1:].isdigit()]
+    flat.loc[flat.index[0], scols] = 0.01
+    raises(lambda: density.score(flat, DATA, with_garch=False), "zero-variance")
+
+    # an unconverged GARCH fit counts as a failure and gives no baseline numbers
+    class Fit:
+        convergence_flag = 4; params = {}
+        def forecast(self, horizon, reindex):
+            return SimpleNamespace(variance=pd.DataFrame([[1.0] * horizon]))
+    real_fit, density.fit_garch = density.fit_garch, lambda r: Fit()
+    try:
+        res = density.score(few, DATA, with_garch=True)
+    finally:
+        density.fit_garch = real_fit
+    assert res["garch_failures"] == res["scored"] > 0, res["garch_failures"]
+    assert "crps_garch" not in res["per_row"], list(res["per_row"])
 
     # the last origin whose realized close exists is scored: 95 bars, lookback 90, horizon 5 is one row
     one = run(NoiseAdapter(), ["X"], data={"X": synth(1, n=95)}, lookback=90, ntest=95, step=1,

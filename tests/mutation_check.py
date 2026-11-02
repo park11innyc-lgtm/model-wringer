@@ -44,6 +44,8 @@ MUTANTS = [
     ("pit_wrong", _N, "np.sum(x == y) + 0.5) / (len(x) + 1)", "np.sum(x == y)) / len(x)"),
     ("anch_hi_skips_unmeasured", _N, 'float("nan") if np.isnan(his).any() else max(his)', "max(his)"),
     ("runner_drops_last_origin", "wringer/runner.py", "n - horizon + 1, step", "n - horizon, step"),
+    ("zero_variance_scored", _N, "if not ks.max() > ks.min():", "if False:"),
+    ("garch_unconverged_kept", _N, "if res.convergence_flag != 0:", "if False:"),
     ("deltas_empty", _N, "    return dict(per_row=sc, summary=summary, deltas=deltas,",
      "    deltas = {}\n    return dict(per_row=sc, summary=summary, deltas=deltas,"),
 ]
