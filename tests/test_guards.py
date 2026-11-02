@@ -118,6 +118,7 @@ def main():
     raises(lambda: density.score(df, DATA, horizon=1, with_garch=False), "does not match")
     mixed = df.copy(); mixed.loc[mixed.index[0], "horizon"] = 1
     raises(lambda: density.score(mixed, DATA, with_garch=False), "mixes horizons")
+    raises(lambda: directional.score(mixed), "mixes horizons")
 
     # 4. a full run reaches a real verdict with real numbers
     ok = density.score(df, DATA, horizon=5, with_garch=False)

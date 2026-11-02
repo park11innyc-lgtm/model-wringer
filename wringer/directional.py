@@ -94,6 +94,9 @@ def incremental_beyond_reversal(df):
 
 
 def score(df):
+    if "horizon" in df.columns and df["horizon"].nunique() > 1:
+        raise ValueError(f"run CSV mixes horizons {sorted(df['horizon'].unique())}; "
+                         "score each horizon separately")
     d = df.copy(); d["up"] = (d.act_ret > 0).astype(int)
     obs, pct, nmu, nsd = perm_test(d)
     per = {t: auc(g.p_up, g.up) for t, g in d.groupby("ticker")}
