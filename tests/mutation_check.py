@@ -42,6 +42,8 @@ MUTANTS = [
     ("crps_unfair_divisor", _N, "(2 * n * (n - 1))", "(2 * n * n)"),
     ("crps_normal_wrong", _N, "2 * norm.pdf(z) - 1 / np.sqrt(np.pi)", "2 * norm.pdf(z)"),
     ("pit_wrong", _N, "np.sum(x == y) + 0.5) / (len(x) + 1)", "np.sum(x == y)) / len(x)"),
+    ("anch_hi_skips_unmeasured", _N, 'float("nan") if np.isnan(his).any() else max(his)', "max(his)"),
+    ("runner_drops_last_origin", "wringer/runner.py", "n - horizon + 1, step", "n - horizon, step"),
     ("deltas_empty", _N, "    return dict(per_row=sc, summary=summary, deltas=deltas,",
      "    deltas = {}\n    return dict(per_row=sc, summary=summary, deltas=deltas,"),
 ]

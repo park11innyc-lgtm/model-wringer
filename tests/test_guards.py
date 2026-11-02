@@ -7,7 +7,7 @@ import numpy as np, pandas as pd
 from wringer.adapters import NoiseAdapter
 from wringer.runner import run
 from wringer import density, directional, report
-from test_known_answer import DATA, KW
+from test_known_answer import DATA, KW, synth
 
 
 class NanAdapter(NoiseAdapter):
@@ -85,6 +85,15 @@ def main():
     assert res["deltas"], "short window produced no deltas to check"
     assert all(np.isnan(lo) for _, (lo, _) in res["deltas"].values()), res["deltas"]
     assert "NO VERDICT" in report.density_verdict(res)
+    # enough dates for L=5 and 10 but not 20: a block length it can't measure is no win
+    mid = df[df.date.isin(sorted(df.date.unique())[:25])]
+    res = density.score(mid, DATA, with_garch=False)
+    assert res["anch_hi"] and all(np.isnan(v) for v in res["anch_hi"].values()), res["anch_hi"]
+
+    # the last origin whose realized close exists is scored: 95 bars, lookback 90, horizon 5 is one row
+    one = run(NoiseAdapter(), ["X"], data={"X": synth(1, n=95)}, lookback=90, ntest=95, step=1,
+              horizon=5, n_samples=30, seed=0, verbose=False)
+    assert len(one) == 1, len(one)
 
     # 3. horizon mismatch and mixed horizons rejected
     raises(lambda: density.score(df, DATA, horizon=1, with_garch=False), "does not match")

@@ -154,7 +154,7 @@ def score(df, tickers_data, horizon=None, with_garch=True):
                 d_ = block_dcrps(col, f"crps_{base}")
                 if d_: deltas[f"{tag}_vs_{base}"] = d_
                 if d_ and tag == "anch":   # the Kronos sliver held at L=10 only: a win must hold at every L
-                    anch_hi[f"{tag}_vs_{base}"] = max(block_dcrps(col, f"crps_{base}", block=L)[1][1]
-                                                      for L in BLOCK_GRID)
+                    his = [block_dcrps(col, f"crps_{base}", block=L)[1][1] for L in BLOCK_GRID]
+                    anch_hi[f"{tag}_vs_{base}"] = float("nan") if np.isnan(his).any() else max(his)
     return dict(per_row=sc, summary=summary, deltas=deltas, anch_hi=anch_hi,
                 scored=len(sc), skipped=skipped, garch_failures=garch_fail)

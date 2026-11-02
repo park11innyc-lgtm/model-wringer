@@ -18,7 +18,7 @@ def run(adapter, tickers, lookback=90, horizon=5, n_samples=50, ntest=252,
     for tkr in tickers:
         df = data[tkr] if data is not None else load_daily(tkr, start=start, end=end)
         n = len(df)
-        for i in range(max(lookback, n - ntest), n - horizon, step):
+        for i in range(max(lookback, n - ntest), n - horizon + 1, step):
             hist = df.iloc[i - lookback:i]
             if len(hist) < lookback: continue
             last = float(hist["close"].iloc[-1])
