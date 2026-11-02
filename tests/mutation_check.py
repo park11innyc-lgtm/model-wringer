@@ -47,6 +47,7 @@ MUTANTS = [
     ("zero_variance_scored", _N, "if not ks.max() > ks.min():", "if False:"),
     ("garch_unconverged_kept", _N, "if res.convergence_flag != 0:", "if False:"),
     ("directional_pools_horizons", _D, 'df["horizon"].nunique() > 1', 'df["horizon"].nunique() > 99'),
+    ("runner_drops_short_ticker", "wringer/runner.py", "if n < lookback + horizon:", "if False:"),
     ("deltas_empty", _N, "    return dict(per_row=sc, summary=summary, deltas=deltas,",
      "    deltas = {}\n    return dict(per_row=sc, summary=summary, deltas=deltas,"),
 ]

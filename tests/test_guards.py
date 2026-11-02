@@ -113,6 +113,9 @@ def main():
     one = run(NoiseAdapter(), ["X"], data={"X": synth(1, n=95)}, lookback=90, ntest=95, step=1,
               horizon=5, n_samples=30, seed=0, verbose=False)
     assert len(one) == 1, len(one)
+    # a ticker with too little history stops the run instead of leaving the universe
+    raises(lambda: run(NoiseAdapter(), ["X"], data={"X": synth(1, n=94)}, lookback=90, ntest=95, step=1,
+                       horizon=5, n_samples=30, seed=0, verbose=False), "need lookback + horizon")
 
     # 3. horizon mismatch and mixed horizons rejected
     raises(lambda: density.score(df, DATA, horizon=1, with_garch=False), "does not match")
