@@ -1,13 +1,13 @@
 """Offline guard tests: nonfinite samples, short-window bootstraps, horizon mismatch,
 density estimators and density verdicts.
 Run: .venv/bin/python tests/test_guards.py"""
-import sys, os
+import contextlib, io, sys, os, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from types import SimpleNamespace
 import numpy as np, pandas as pd
 from wringer.adapters import NoiseAdapter
 from wringer.runner import run
-from wringer import density, directional, report
+from wringer import cli, density, directional, report
 from test_known_answer import DATA, KW, synth
 
 
@@ -30,10 +30,10 @@ def close(a, b, tol=1e-6):
     assert abs(a - b) < tol, (a, b)
 
 
-def density_verdict_of(deltas, anch_hi=None):
+def density_verdict_of(deltas, anch_hi=None, garch_failures=0):
     """Last line of the density verdict, on a hand-built result."""
-    d = dict(summary={"model_ctr": {"crps_bps": 1.0}}, deltas=deltas, scored=100,
-             anch_hi={} if anch_hi is None else anch_hi)
+    d = dict(summary={"model_ctr": {"crps_bps": 100.0}}, deltas=deltas, scored=100,
+             anch_hi={} if anch_hi is None else anch_hi, garch_failures=garch_failures)
     return report.density_verdict(d).split("\n")[-1]
 
 
@@ -56,6 +56,13 @@ def test_density_verdicts():
     win = (-1e-3, (-2e-3, -5e-4))
     assert "VERDICT: FAIL" in density_verdict_of({"ctr_vs_ewma": lose})
     assert "VERDICT: density is competitive" in density_verdict_of({"ctr_vs_ewma": wide})
+    # no significant loss isn't a tie: this interval reaches +1000 bps
+    v = density_verdict_of({"ctr_vs_ewma": (0.05, (-1e-4, 0.1))})
+    assert "INCONCLUSIVE" in v and "competitive with" not in v, v
+    v = density_verdict_of({"ctr_vs_ewma": wide}, garch_failures=11)
+    assert "NO VERDICT" in v and "GARCH" in v, v
+    assert "competitive" in density_verdict_of({"ctr_vs_ewma": wide}, garch_failures=10)
+    assert "VERDICT: FAIL" in density_verdict_of({"ctr_vs_ewma": lose}, garch_failures=99)
     # a shape win must hold at every block length; L=10 alone, as Kronos had it, is no win
     v = density_verdict_of({"ctr_vs_ewma": lose, "anch_vs_ewma": win}, {"anch_vs_ewma": -1e-5})
     assert "VERDICT: FAIL" in v and "Shape-only" in v and "anch_vs_ewma" in v, v
@@ -108,6 +115,39 @@ def main():
         density.fit_garch = real_fit
     assert res["garch_failures"] == res["scored"] > 0, res["garch_failures"]
     assert "crps_garch" not in res["per_row"], list(res["per_row"])
+
+    # a missing arch install stops the run instead of counting as failed fits
+    def no_arch(r): raise ImportError("no arch")
+    real_fit, density.fit_garch = density.fit_garch, no_arch
+    try:
+        try:
+            density.score(few, DATA, with_garch=True)
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("missing arch was swallowed")
+    finally:
+        density.fit_garch = real_fit
+
+    # a window that doesn't end after the origin, or an adapter peeking at the answer, never runs
+    short = dict(ntest=30, n_samples=30, seed=0, verbose=False)
+    for bad in (dict(horizon=-1, step=5), dict(horizon=0, step=1), dict(horizon=5, step=0)):
+        raises(lambda: run(NoiseAdapter(), list(DATA), data=DATA, **short, **bad), "must be >= 1")
+    class Peek(NoiseAdapter):
+        name = "peek"; wants_future = True
+        def sample_terminal_returns(self, hist, horizon, n_samples, rng, future_ret=None):
+            return future_ret + np.linspace(-0.01, 0.01, n_samples)
+    raises(lambda: run(Peek(), list(DATA), data=DATA, horizon=5, step=2, **short), "realized return")
+
+    # the ticker NA survives the round trip through the CSV
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "na.csv")
+        df.assign(ticker=df.ticker.replace("SYN0", "NA")).to_csv(path, index=False)
+        sys.argv = ["wringer", "score", "--csv", path]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli.main()
+        assert "NA:" in buf.getvalue(), buf.getvalue()
 
     # the last origin whose realized close exists is scored: 95 bars, lookback 90, horizon 5 is one row
     one = run(NoiseAdapter(), ["X"], data={"X": synth(1, n=95)}, lookback=90, ntest=95, step=1,

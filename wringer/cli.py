@@ -47,7 +47,7 @@ def main():
         print(f"wrote {a.out}  {len(df)} rows")
     else:
         from . import directional, report
-        df = pd.read_csv(a.csv)
+        df = pd.read_csv(a.csv, converters={"ticker": str})
         print("=== DIRECTIONAL ===")
         print(report.directional_verdict(directional.score(df)))
         if a.density:

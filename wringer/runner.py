@@ -6,6 +6,7 @@ act_ret = close[i+horizon-1]/close[i-1] - 1. Adapters see history only.
 """
 import numpy as np, pandas as pd
 from .data import load_daily
+from .adapters import REGISTRY
 
 
 def run(adapter, tickers, lookback=90, horizon=5, n_samples=50, ntest=252,
@@ -13,6 +14,12 @@ def run(adapter, tickers, lookback=90, horizon=5, n_samples=50, ntest=252,
     """data: optional {ticker: DataFrame} to bypass yfinance (offline tests)."""
     if n_samples < 2:
         raise ValueError("n_samples must be >= 2 (density scoring divides by n*(n-1))")
+    if horizon < 1 or step < 1:
+        raise ValueError(f"horizon and step must be >= 1, got horizon={horizon} step={step}: "
+                         "a window ending at or before the origin scores the past as the future")
+    if adapter.wants_future and type(adapter) not in REGISTRY.values():
+        raise ValueError(f"{type(adapter).__name__} asks for the realized return; "
+                         "only the registered known-answer adapters may see it")
     rows = []
     rng = np.random.default_rng(seed)
     for tkr in tickers:

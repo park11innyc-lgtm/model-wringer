@@ -114,6 +114,8 @@ def score(df, tickers_data, horizon=None, with_garch=True):
                 rec["crps_garch"] = crps_normal(gmu, gsig, y)
                 rec["pit_garch"] = float(norm.cdf((y - gmu) / gsig))
                 rec["cov_garch"] = int(gmu - Z80 * gsig <= y <= gmu + Z80 * gsig)
+            except ImportError:
+                raise
             except Exception:
                 garch_fail += 1
         out.append(rec)

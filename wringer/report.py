@@ -21,6 +21,10 @@ def directional_verdict(s):
     return "\n".join(lines)
 
 
+GARCH_FAIL_MAX = 0.10     # above this share of failed fits, "competitive" isn't earned
+TIE_MAX_FRACTION = 0.10   # a tie's CI may not reach past this share of the model's own CRPS
+
+
 def density_verdict(d):
     s, deltas = d["summary"], d["deltas"]
     if not d.get("scored"):
@@ -49,10 +53,20 @@ def density_verdict(d):
         return "\n".join(lines)
     ctr_lose = [k for k, (mu, (lo, _)) in deltas.items() if k.startswith("ctr") and lo > 0]
     anch_win = [k for k, hi in d.get("anch_hi", {}).items() if hi < 0]   # NaN (too few dates) is no win
+    garch_failed = d.get("garch_failures", 0)
+    tie_max = TIE_MAX_FRACTION * s["model_ctr"]["crps_bps"] / 1e4
+    wide = [k for k in ctr_valid if deltas[k][1][1] > tie_max]
     if ctr_lose:
         v = "FAIL: centered density loses to free baselines (" + ", ".join(ctr_lose) + ")."
         if anch_win:
             v += " Shape-only (variance-anchored) survives (" + ", ".join(anch_win) + ") — marginal at best."
+    elif garch_failed > GARCH_FAIL_MAX * d["scored"]:
+        lines.append(f"VERDICT: NO VERDICT: GARCH failed on {garch_failed} of {d['scored']} rows, "
+                     "so that baseline wasn't really tested.")
+        return "\n".join(lines)
+    elif wide:
+        v = ("INCONCLUSIVE: the model could still be materially worse than free baselines ("
+             + ", ".join(wide) + ").")
     else:
         v = "density is competitive with free baselines after centering."
     lines.append("VERDICT: " + v)

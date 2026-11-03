@@ -9,7 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUITES = ("tests/test_known_answer.py", "tests/test_guards.py")
 
 _D = "wringer/directional.py"; _R = "wringer/report.py"; _N = "wringer/density.py"
-HARD_PASS = '    lines.append("VERDICT: " + v)\n    return "\\n".join(lines)\n\n\ndef density_verdict'
+HARD_PASS = '    lines.append("VERDICT: " + v)\n    return "\\n".join(lines)\n\n\nGARCH_FAIL_MAX'
 MUTANTS = [
     # hardcoded verdicts
     ("directional_always_PASS", _R, HARD_PASS,
@@ -48,6 +48,12 @@ MUTANTS = [
     ("garch_unconverged_kept", _N, "if res.convergence_flag != 0:", "if False:"),
     ("directional_pools_horizons", _D, 'df["horizon"].nunique() > 1', 'df["horizon"].nunique() > 99'),
     ("runner_drops_short_ticker", "wringer/runner.py", "if n < lookback + horizon:", "if False:"),
+    ("runner_allows_bad_horizon", "wringer/runner.py", "if horizon < 1 or step < 1:", "if False:"),
+    ("runner_allows_peeking", "wringer/runner.py", "if adapter.wants_future and type(adapter) not in REGISTRY.values():", "if False:"),
+    ("garch_import_swallowed", _N, "            except ImportError:\n                raise\n", ""),
+    ("garch_failures_ignored", _R, 'elif garch_failed > GARCH_FAIL_MAX * d["scored"]:', "elif False:"),
+    ("wide_ci_competitive", _R, "    elif wide:\n", "    elif False:\n"),
+    ("na_ticker_dropped", "wringer/cli.py", 'pd.read_csv(a.csv, converters={"ticker": str})', "pd.read_csv(a.csv)"),
     ("deltas_empty", _N, "    return dict(per_row=sc, summary=summary, deltas=deltas,",
      "    deltas = {}\n    return dict(per_row=sc, summary=summary, deltas=deltas,"),
 ]
