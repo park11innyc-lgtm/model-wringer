@@ -93,6 +93,11 @@ def test_estimators():
         for k in range(4):
             rows.append(dict(ticker=t, p_up=off + k, act_ret=1.0 if k >= 2 else -1.0))
     assert directional.within_auc(pd.DataFrame(rows)) == 1.0
+    # identical scores carry no information, whatever the tickers' history lengths
+    flat = pd.DataFrame(dict(ticker=["A"] * 40 + ["B"] * 400, p_up=0.5, hist_ret=0.0,
+                             act_ret=[1.0] * 40 + [-1.0] * 400, date=[str(k) for k in range(440)]))
+    assert directional.within_auc(flat) == 0.5, directional.within_auc(flat)
+    assert directional.incremental_beyond_reversal(flat)["model_auc"] == 0.5
 
     # 95% block CI of an iid mean has width about 2*1.96*sd/sqrt(n) (an IQR would be ~0.34x this)
     rng = np.random.default_rng(0)

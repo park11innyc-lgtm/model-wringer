@@ -37,7 +37,7 @@ MUTANTS = [
     # estimators
     ("ci_is_iqr", _D, "np.percentile(out, [2.5, 97.5])\n\n\nBLOCK_GRID", "np.percentile(out, [25, 75])\n\n\nBLOCK_GRID"),
     ("perm_null_sd_halved", _D, "float(null.mean()), float(null.std())", "float(null.mean()), float(null.std()) / 2"),
-    ("pooled_not_within_ticker", _D, 'd["_r"] = d.groupby("ticker")[col].rank(pct=True)', 'd["_r"] = d[col]'),
+    ("pooled_not_within_ticker", _D, 'd["_r"] = ticker_rank(d, col)', 'd["_r"] = d[col]'),
     ("crps_zero", _N, "    return t1 - t2\n", "    return 0.0\n"),
     ("crps_unfair_divisor", _N, "(2 * n * (n - 1))", "(2 * n * n)"),
     ("crps_normal_wrong", _N, "2 * norm.pdf(z) - 1 / np.sqrt(np.pi)", "2 * norm.pdf(z)"),
@@ -54,6 +54,7 @@ MUTANTS = [
     ("garch_failures_ignored", _R, 'elif garch_failed > GARCH_FAIL_MAX * d["scored"]:', "elif False:"),
     ("wide_ci_competitive", _R, "    elif wide:\n", "    elif False:\n"),
     ("na_ticker_dropped", "wringer/cli.py", 'pd.read_csv(a.csv, converters={"ticker": str})', "pd.read_csv(a.csv)"),
+    ("rank_uncentered", _D, 'return (g.rank() - 0.5) / g.transform("size")', "return g.rank(pct=True)"),
     ("deltas_empty", _N, "    return dict(per_row=sc, summary=summary, deltas=deltas,",
      "    deltas = {}\n    return dict(per_row=sc, summary=summary, deltas=deltas,"),
 ]

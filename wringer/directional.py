@@ -13,9 +13,15 @@ def auc(score, label):
     return (r[label == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)
 
 
+def ticker_rank(d, col):
+    """Rank within ticker, centered on 0.5 at any history length so tickers pool fairly."""
+    g = d.groupby("ticker")[col]
+    return (g.rank() - 0.5) / g.transform("size")
+
+
 def within_auc(df, col="p_up"):
     d = df.copy()
-    d["_r"] = d.groupby("ticker")[col].rank(pct=True)
+    d["_r"] = ticker_rank(d, col)
     return auc(d["_r"], (d.act_ret > 0).astype(int))
 
 
@@ -81,8 +87,8 @@ def incremental_beyond_reversal(df):
     the free rule stays ATTRIBUTED. ci spans the widest bound across BLOCK_GRID."""
     d = df.copy()
     up = (d.act_ret > 0).astype(int).values
-    rp = d.groupby("ticker").p_up.rank(pct=True).values
-    rrev = (d.groupby("ticker").hist_ret.rank(pct=True) * -1).values
+    rp = ticker_rank(d, "p_up").values
+    rrev = (ticker_rank(d, "hist_ret") * -1).values
     dates = d.date.astype(str).values
     a_m = auc(rp, up); a_r = auc(rrev, up)
     by_block = {b: _paired_edge_ci(rp, rrev, up, dates, b) for b in BLOCK_GRID}
