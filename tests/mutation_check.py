@@ -55,6 +55,7 @@ MUTANTS = [
     ("wide_ci_competitive", _R, "    elif wide:\n", "    elif False:\n"),
     ("na_ticker_dropped", "wringer/cli.py", 'pd.read_csv(a.csv, converters={"ticker": str})', "pd.read_csv(a.csv)"),
     ("rank_uncentered", _D, 'return (g.rank() - 0.5) / g.transform("size")', "return g.rank(pct=True)"),
+    ("unmeasured_baseline_competitive", _R, "    elif unmeasured:\n", "    elif False:\n"),
     ("deltas_empty", _N, "    return dict(per_row=sc, summary=summary, deltas=deltas,",
      "    deltas = {}\n    return dict(per_row=sc, summary=summary, deltas=deltas,"),
 ]

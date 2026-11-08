@@ -56,6 +56,7 @@ def density_verdict(d):
     garch_failed = d.get("garch_failures", 0)
     tie_max = TIE_MAX_FRACTION * s["model_ctr"]["crps_bps"] / 1e4
     wide = [k for k in ctr_valid if deltas[k][1][1] > tie_max]
+    unmeasured = [k for k in deltas if k.startswith("ctr") and k not in ctr_valid]
     if ctr_lose:
         v = "FAIL: centered density loses to free baselines (" + ", ".join(ctr_lose) + ")."
         if anch_win:
@@ -63,6 +64,10 @@ def density_verdict(d):
     elif garch_failed > GARCH_FAIL_MAX * d["scored"]:
         lines.append(f"VERDICT: NO VERDICT: GARCH failed on {garch_failed} of {d['scored']} rows, "
                      "so that baseline wasn't really tested.")
+        return "\n".join(lines)
+    elif unmeasured:
+        lines.append("VERDICT: NO VERDICT: no valid interval against " + ", ".join(unmeasured)
+                     + ", so competitiveness with every baseline isn't shown.")
         return "\n".join(lines)
     elif wide:
         v = ("INCONCLUSIVE: the model could still be materially worse than free baselines ("

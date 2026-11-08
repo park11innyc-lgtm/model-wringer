@@ -59,6 +59,10 @@ def test_density_verdicts():
     # no significant loss isn't a tie: this interval reaches +1000 bps
     v = density_verdict_of({"ctr_vs_ewma": (0.05, (-1e-4, 0.1))})
     assert "INCONCLUSIVE" in v and "competitive with" not in v, v
+    nan2 = (0.0, (float("nan"), float("nan")))
+    v = density_verdict_of({"ctr_vs_ewma": wide, "ctr_vs_hist": nan2})
+    assert "NO VERDICT" in v and "ctr_vs_hist" in v, v
+    assert "VERDICT: FAIL" in density_verdict_of({"ctr_vs_ewma": lose, "ctr_vs_hist": nan2})
     v = density_verdict_of({"ctr_vs_ewma": wide}, garch_failures=11)
     assert "NO VERDICT" in v and "GARCH" in v, v
     assert "competitive" in density_verdict_of({"ctr_vs_ewma": wide}, garch_failures=10)
